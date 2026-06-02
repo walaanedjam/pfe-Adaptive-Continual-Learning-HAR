@@ -1,11 +1,25 @@
-/docs/
-/data/
-/checkpoints/
-/results/
+# Large data files
+/data/raw/
+/data/processed/
+
+# Model checkpoints
+*.pt
+*.pth
+
+# NumPy result arrays
+*.npy
+
+# Compiled Python
 __pycache__/
 *.pyc
 *.pyo
-*.pt
-*.npy
-*.log
+
+# LaTeX docs
+/docs/
+
+# OS
 .DS_Store
+
+# Env
+.env
+*.egg-info/

@@ -12,11 +12,11 @@
 
 ## Overview
 
-This project proposes a deep learning system for **Human Activity Recognition (HAR)** using inertial sensors (IMU) that goes beyond static classification. The system is designed to:
+This project proposes a deep learning system for **Human Activity Recognition (HAR)** using wearable IMU sensors that goes beyond static classification. The system is designed to:
 
 - **Learn continuously** — adapt to new users and activities over time without forgetting previous knowledge (catastrophic forgetting)
-- **Anticipate transitions** — detect imminent activity changes from partial observations, enabling proactive applications (fall prevention, assistive systems)
-- **Adapt across domains** — transfer knowledge between different sensor placements and datasets with minimal labeled data
+- **Anticipate transitions** — detect imminent activity changes from partial signal windows
+- **Adapt across domains** — transfer knowledge between datasets with minimal labeled data (CORAL)
 
 ---
 
@@ -40,29 +40,33 @@ IMU Signal  (B × 150 × 6)   50 Hz — acc_xyz + gyro_xyz
   │           │    │  Head            │
   │ Prototype │    │  Binary K=2      │
   │ Memory    │    │  Focal Loss      │
-  │ UWR Buffer│    │  F1 = 0.262      │
-  │ MC Dropout│    └──────────────────┘
+  │ UWR Buffer│    └──────────────────┘
+  │ MC Dropout│
   └───────────┘
 ```
 
-**Key innovations:**
-- **Uncertainty-Weighted Replay (UWR)** — prioritizes hard examples in the replay buffer using Monte Carlo Dropout uncertainty estimates
-- **Binary transition detection** — reformulates activity anticipation as a binary classification problem (K=2 horizon), outperforming multi-class approach by +68%
-- **CORAL domain adaptation** — covariance alignment between source and target embeddings, achieving ×15 F1 gain with only 20% target labels
+**Key contributions:**
+- **Uncertainty-Weighted Replay (UWR)** — prioritizes hard examples using MC Dropout uncertainty
+- **Binary transition detection (K=2)** — +68% F1 over multi-class anticipation
+- **CORAL adaptation** — ×15 F1 gain with only 20% target labels
 
 ---
 
 ## Results
 
-### HAR Classification
+### Training Curves
 
-| Model | Accuracy | Macro F1 |
-|-------|----------|----------|
-| n=4 blocks (no augmentation) | 81.0% | — |
-| **n=4 blocks + augmentation** | **91.3%** | **0.752** |
-| n=6 blocks + augmentation | 90.7% | 0.716 |
+![Training curves](assets/pretrain_history.png)
 
-### Continual Learning — User-Incremental Scenario
+*Pre-training loss convergence and validation macro-F1 over 30 epochs.*
+
+---
+
+### Continual Learning — SOTA Comparison (User-Incremental)
+
+![SOTA comparison](assets/sota_comparison.png)
+
+*Macro-F1 across 15 sequential users. Our method (UWR) maintains stable performance while baselines degrade.*
 
 | Method | Final Accuracy | Forgetting |
 |--------|---------------|------------|
@@ -71,13 +75,35 @@ IMU Signal  (B × 150 × 6)   50 Hz — acc_xyz + gyro_xyz
 | iCaRL (Rebuffi et al., 2017) | 75.8% | 0.112 |
 | **Ours (UWR)** | **79.2%** | **0.087** |
 
+### t-SNE Visualization of Learned Embeddings
+
+![t-SNE embeddings](assets/tsne_embeddings.png)
+
+*Backbone embeddings projected to 2D via t-SNE. Each color represents one activity class — the clear cluster separation confirms that the Transformer backbone learns discriminative and well-structured representations, which directly supports the low forgetting rate of UWR.*
+
+---
+
+### Forgetting Analysis
+
+![Forgetting user](assets/forgetting_user.png)
+
+*Per-task forgetting over the user-incremental sequence. UWR (blue) consistently shows lower degradation.*
+
+---
+
 ### Activity Anticipation
 
-| Formulation | F1 (Transition) | Recall |
-|-------------|----------------|--------|
-| Multi-class (12 classes) | 0.093 | — |
-| Binary K=1, BCE | 0.156 | 0.67 |
-| **Binary K=2 + Focal Loss (ours)** | **0.262** | **0.55** |
+![Anticipation results](assets/anticipation_results.png)
+
+*Comparison of multi-class formulation vs binary transition detection at different observation ratios.*
+
+| Formulation | F1 (Transition) |
+|-------------|----------------|
+| Multi-class (12 classes) | 0.093 |
+| Binary K=1 + BCE | 0.156 |
+| **Binary K=2 + Focal Loss (ours)** | **0.262** |
+
+---
 
 ### Domain Adaptation — HAPT → WISDM
 
@@ -118,14 +144,11 @@ har_project/
 │       └── metrics.py             # F1, BWT, FWT, Forgetting
 ├── scripts/
 │   ├── train.py                   # Main training entry point
-│   ├── train_transition_detection.py
-│   ├── train_k2_anticipation.py   # K=2 + focal loss anticipation
-│   ├── train_backbone_n6.py       # Architecture ablation
-│   ├── train_fall_detection.py
-│   ├── eval_domain_adapter.py     # CORAL evaluation
+│   ├── train_anticipation.py
 │   ├── cross_dataset_eval.py
 │   ├── ablation.py
-│   └── visualize_embeddings.py    # t-SNE visualization
+│   └── visualize_embeddings.py
+├── assets/                        # Result figures
 ├── demo.py                        # Interactive demo
 └── requirements.txt
 ```
@@ -135,14 +158,12 @@ har_project/
 ## Installation
 
 ```bash
-git clone https://github.com/walaanedjam/har-project.git
-cd har-project
+git clone https://github.com/walaanedjam/pfe-Adaptive-Continual-Learning-HAR.git
+cd pfe-Adaptive-Continual-Learning-HAR
 pip install -r requirements.txt
 ```
 
 ### Datasets
-
-Download and place under `data/raw/`:
 
 | Dataset | Link |
 |---------|------|
@@ -150,7 +171,6 @@ Download and place under `data/raw/`:
 | WISDM | https://www.cis.fordham.edu/wisdm/dataset.php |
 
 ```bash
-# Preprocess all datasets
 python scripts/preprocess.py --data_root data/raw --out data/processed
 ```
 
@@ -159,35 +179,17 @@ python scripts/preprocess.py --data_root data/raw --out data/processed
 ## Usage
 
 ```bash
-# 1. Pre-train the backbone
+# Pre-train the backbone
 python scripts/train.py --mode pretrain --epochs 100
 
-# 2. Continual learning — user-incremental
+# Continual learning — user-incremental
 python scripts/train.py --mode continual --scenario user
 
-# 3. Continual learning — class-incremental
+# Continual learning — class-incremental
 python scripts/train.py --mode continual --scenario class
 
-# 4. Train anticipation module (K=2, focal loss)
-python scripts/train_k2_anticipation.py
-
-# 5. Domain adaptation CORAL
-python scripts/eval_domain_adapter.py
-
-# 6. Interactive demo
+# Interactive demo
 python demo.py
-```
-
----
-
-## Dependencies
-
-```
-torch >= 2.0
-numpy >= 1.24
-scipy >= 1.10
-scikit-learn >= 1.2
-matplotlib >= 3.7
 ```
 
 ---
