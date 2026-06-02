@@ -1,0 +1,11 @@
+docs/
+data/
+checkpoints/
+__pycache__/
+*.pyc
+*.pyo
+*.pt
+*.npy
+*.log
+.DS_Store
+results/

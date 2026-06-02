@@ -1,0 +1,7 @@
+numpy>=1.24
+scipy>=1.10
+pandas>=1.5
+scikit-learn>=1.2
+matplotlib>=3.7
+tqdm>=4.65
+torch>=2.0          # for model training — use Google Colab if disk space is limited
