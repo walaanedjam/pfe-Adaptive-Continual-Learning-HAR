@@ -1,6 +1,7 @@
-docs/
-data/
-checkpoints/
+/docs/
+/data/
+/checkpoints/
+/results/
 __pycache__/
 *.pyc
 *.pyo
@@ -8,4 +9,3 @@ __pycache__/
 *.npy
 *.log
 .DS_Store
-results/
